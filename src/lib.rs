@@ -72,7 +72,7 @@ impl PacketBuf {
         Ok(res)
     }
 
-    fn read_qname(&mut self, output_str: &mut String) -> Result<()> {
+    fn read_query_name(&mut self, output_str: &mut String) -> Result<()> {
         let mut pos = self.pos();
         let mut jumped = false;
 
@@ -157,8 +157,8 @@ impl PacketBuf {
         Ok(())
     }
 
-    fn write_qname(&mut self, qname: &str) -> Result<()> {
-        for label in qname.split('.') {
+    fn write_query_name(&mut self, query_name: &str) -> Result<()> {
+        for label in query_name.split('.') {
             let len = label.len();
             if len > 0x34 {
                 return Err("Single label exceeds 63 characters of length".into());
