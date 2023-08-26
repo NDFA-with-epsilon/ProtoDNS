@@ -10,7 +10,7 @@ A DNS message has :
     [+] Additional Space    \
 
 \
-Header controls the contents of a DNS message, is of 12 bytes (2 x 6) and contains: 
+Header controls the contents of a DNS message, is of 12 bytes (2 x 6) and contains: \
     [+] Identification  \
     [+] Flags   \
     [+] No. of Questions    \
@@ -19,7 +19,7 @@ Header controls the contents of a DNS message, is of 12 bytes (2 x 6) and contai
     [+] No. of Additional RR    \
 
 \
-Question section in the DNS message contains 3 fields: 
+Question section in the DNS message contains 3 fields: \
     [+] QName -> domain name requested  \
     [+] QType -> Type of resource record requested  (A -> IPv4 address mapping, AAAA-> IPv6 address mapping, MX -> SMTP mail server for the domain) \     
     [+] QClass  \
