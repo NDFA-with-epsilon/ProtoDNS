@@ -1,4 +1,4 @@
-use std::error;
+use std::{error, net::{Ipv4Addr, Ipv6Addr}};
 
 type Result<T> = std::result::Result<T, Box<dyn error::Error>>;
 
@@ -229,7 +229,98 @@ impl DNSHeader {
     }
 }
 
+//type of record being queried
 #[derive(PartialEq, Eq, Debug)]
-pub enum QueryType {
-    
+pub enum QueryRecordType {
+    UNKNOWN(u16), 
+    A, // A => 1 //IPv4 
+}
+
+impl QueryRecordType {
+    pub fn to_num(&self) -> u16 {
+        match *self {
+            QueryRecordType::UNKNOWN(x) => x,
+            QueryRecordType::A => 1
+        }
+    }
+
+    pub fn from_num(num: u16) -> QueryRecordType {
+        match num {
+            1 => QueryRecordType::A,
+            _ => QueryRecordType::UNKNOWN(num)
+        }
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub struct DNSQuestion {
+    pub name: String,
+    pub query_type: QueryRecordType,
+    pub class: u16
+}
+
+impl DNSQuestion {
+    pub fn new(name: String, query_type: QueryRecordType) -> Self{
+        Self {
+            name: name,
+            query_type: query_type,
+            class: 0
+        }
+    }
+
+    pub fn read(&mut self, buf: &mut BytePacket) -> Result<()> {    
+        self.name = buf.read_qname()?;
+        self.query_type = QueryRecordType::from_num(buf.read_u16()?);
+
+        self.class = buf.read_u16()?;
+
+        Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum DNSRRecord {
+    UNKNOWN {
+        domain: String,
+        query_type: u16,
+        data_len: u16,
+        ttl: u32
+    },
+
+    A {
+        domain: String,
+        addr: Ipv4Addr,
+        ttl: u32
+    },
+
+    AAAA {
+        domain: String,
+        addr: Ipv6Addr,
+        ttl: u32
+    },
+
+    NS {
+        domain: String,
+        host: String,
+        ttl: u32
+    },
+
+    MX {
+        domain: String,
+        priority: u16,
+        host: String,
+        ttl: u32
+    },
+
+    CNAME {
+        domain: String,
+        host: String,
+        ttl: u32
+    }
+}
+
+impl DNSRRecord {
+    pub fn read(buf: &mut BytePacket) -> Result<DNSRRecord> {
+        
+    }
 }
