@@ -26,6 +26,11 @@ impl BytePacket {
         self.pos = pos;
     }
 
+    pub fn step(&mut self, steps: usize) -> Result<()> {
+        self.pos += steps;
+        Ok(())
+    }
+
     fn read_u8(&mut self) -> Result<u8> {
         if self.pos >= 512 {
             return Err("Read beyond bounds".into());
@@ -42,6 +47,16 @@ impl BytePacket {
         let res = (self.read_u8()? as u16) << 8 | self.read_u8()? as u16 ; //treat the read byte as u16, shift eight bits left i.e. add 8 zeroes and AND with second read byte
 
         Ok(res)
+    }
+
+
+    fn read_u32(&mut self) -> Result<u32> {
+        let res = (self.read_u8()? as u32) << 24 | 
+        (self.read_u8()? as u32) << 16 | 
+        (self.read_u8()? as u32) << 8 | 
+        (self.read_u8()? as u32);
+
+        Ok(res) 
     }
 
     //retrieve a byte without changing pos in buffer -> eg. to retrieve label in domain name using pointer
@@ -297,30 +312,81 @@ pub enum DNSRRecord {
         domain: String,
         addr: Ipv6Addr,
         ttl: u32
-    },
-
-    NS {
-        domain: String,
-        host: String,
-        ttl: u32
-    },
-
-    MX {
-        domain: String,
-        priority: u16,
-        host: String,
-        ttl: u32
-    },
-
-    CNAME {
-        domain: String,
-        host: String,
-        ttl: u32
     }
+
+    // NS {
+    //     domain: String,
+    //     host: String,
+    //     ttl: u32
+    // },
+
+    // MX {
+    //     domain: String,
+    //     priority: u16,
+    //     host: String,
+    //     ttl: u32
+    // },
+
+    // CNAME {
+    //     domain: String,
+    //     host: String,
+    //     ttl: u32
+    // }
 }
 
 impl DNSRRecord {
     pub fn read(buf: &mut BytePacket) -> Result<DNSRRecord> {
+        let mut domain = buf.read_qname()?;
+
+        let query_type_num = buf.read_u16()?;
+        let qtype = QueryRecordType::from_num(query_type_num);
+
+        let class = buf.read_u16()?;
+        let ttl = buf.read_u32()?;
+        let data_len = buf.read_u16()?;
+
+        match qtype {
+            QueryRecordType::A => {
+                let raw_addr = buf.read_u32()?;
+                let addr = Ipv4Addr::new(
+                    ((raw_addr >> 24) & 0xFF) as u8,
+                    ((raw_addr >> 16) & 0xFF) as u8,
+                    ((raw_addr >> 8) & 0xFF) as u8,
+                    ((raw_addr >> 0) & 0xFF) as u8,
+                );
+
+                Ok(DNSRRecord::A { domain: domain, addr: addr, ttl: ttl })
+            }
+
+            QueryRecordType::UNKNOWN(_) => {
+                buf.step(data_len as usize)?;
+
+                Ok(DNSRRecord::UNKNOWN { domain: domain, query_type: query_type_num, data_len: data_len, ttl: ttl })
+            }
+        }
+    }
+}
+
+pub struct DNSPacket {
+    pub header: DNSHeader,
+    pub questions: Vec<DNSQuestion>,
+    pub answers: Vec<DNSRRecord>,
+    pub authority: Vec<DNSRRecord>,
+    pub additional_resources: Vec<DNSRRecord>
+}
+
+impl DNSPacket {
+    pub fn new() -> Self {
+        Self {
+            header: DNSHeader::new(),
+            questions: Vec::new(),
+            answers: Vec::new(),
+            authority: Vec::new(),
+            additional_resources: Vec::new()
+        }
+    }
+
+    pub fn from_packet_buffer(buf: &mut BytePacket) {
         
     }
 }
