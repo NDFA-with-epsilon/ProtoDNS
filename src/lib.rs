@@ -135,3 +135,101 @@ impl BytePacket {
     }   
 }
 
+#[derive(PartialEq, Eq)]
+pub enum RCode {
+    NOERROR = 0,
+    FORMERR = 1,
+    SERVFAIL = 2,
+    NXDOMAIN = 3,
+    NOTIMP = 4,
+    REFUSED = 5
+}
+
+impl RCode {
+    pub fn from_num(num: u8) -> RCode {
+        match num {
+            1 => RCode::FORMERR,
+            2 => RCode::SERVFAIL,
+            3 => RCode::NXDOMAIN,
+            4 => RCode::NOTIMP,
+            5 => RCode::REFUSED,
+            _ => RCode::NOERROR
+        }
+    }
+}
+
+pub struct DNSHeader {
+    pub id: u16,
+
+    //flags
+    pub recursion_desired: bool, //1 bit
+    pub truncation: bool, //1 bit
+    pub auth_ans: bool,  //1 bit
+    pub opcode: u8, //var
+    pub qr: bool, //1 bit
+    pub response_code: RCode, //
+    pub checking_disabled: bool,
+    pub authed_data: bool,
+    pub z: bool,
+    pub recursion_available: bool, //1 bit
+
+    pub n_questions: u16,
+    pub n_answers: u16,
+    pub n_authority_rr: u16,
+    pub n_additional_rr: u16
+}
+
+impl DNSHeader {
+    pub fn new() -> Self {
+        Self {
+            id: 0,
+
+            recursion_desired: false,
+            truncation: false,
+            auth_ans: false,
+            opcode: 0,
+            qr: false,
+            response_code: RCode::NOERROR,
+            checking_disabled: false,
+            authed_data: false,
+            z: false,
+            recursion_available: false,
+
+            n_questions: 0,
+            n_answers: 0,
+            n_authority_rr: 0,
+            n_additional_rr: 0
+        }
+    }
+
+    pub fn read(&mut self, buffer: &mut BytePacket) -> Result<()> {
+            self.id = buffer.read_u16()?;
+            
+            let flags = buffer.read_u16()?;
+            let a = (flags >> 8) as u8;
+            let b = (flags & 0xFF) as u8;
+            self.recursion_desired = (a & (1 << 0)) > 0;
+            self.truncation = (a & (1 << 1)) > 0;
+            self.auth_ans = (a & (1 << 2)) > 0;
+            self.opcode = (a >> 3) & 0x0F;
+            self.qr = (a & (1 << 7)) > 0;
+
+            self.response_code = RCode::from_num(b & 0x0F);
+            self.checking_disabled = (b & (1 << 4)) > 0;
+            self.authed_data = (b & (1 << 5)) > 0;
+            self.z = (b & (1 << 6)) > 0;
+            self.recursion_available = (b & (1 << 7)) > 0;
+
+            self.n_questions = buffer.read_u16()?;
+            self.n_answers = buffer.read_u16()?;
+            self.n_authority_rr = buffer.read_u16()?;
+            self.n_additional_rr = buffer.read_u16()?;
+
+            Ok(())
+    }
+}
+
+#[derive(PartialEq, Eq, Debug)]
+pub enum QueryType {
+    
+}
