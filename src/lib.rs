@@ -355,13 +355,17 @@ impl DNSRRecord {
                     ((raw_addr >> 0) & 0xFF) as u8,
                 );
 
-                Ok(DNSRRecord::A { domain: domain, addr: addr, ttl: ttl })
+                Ok(DNSRRecord::A { 
+                        domain: domain, addr: addr, ttl: ttl 
+                    })
             }
 
             QueryRecordType::UNKNOWN(_) => {
                 buf.step(data_len as usize)?;
 
-                Ok(DNSRRecord::UNKNOWN { domain: domain, query_type: query_type_num, data_len: data_len, ttl: ttl })
+                Ok(DNSRRecord::UNKNOWN { 
+                    domain: domain, query_type: query_type_num, data_len: data_len, ttl: ttl 
+                })
             }
         }
     }
@@ -386,7 +390,33 @@ impl DNSPacket {
         }
     }
 
-    pub fn from_packet_buffer(buf: &mut BytePacket) {
-        
+    pub fn from_packet_buffer(buf: &mut BytePacket) -> Result<DNSPacket> {
+        let mut result = DNSPacket::new();
+        result.header.read(buf);
+
+
+        for _ in 0..result.header.n_questions {
+            let mut question = DNSQuestion::new("".to_string(), QueryRecordType::UNKNOWN(0));
+
+            question.read(buf);
+            result.questions.push(question);
+        }
+
+        for _ in 0..result.header.n_answers {
+            let rec = DNSRRecord::read(buf)?;
+            result.answers.push(rec);
+        }
+
+        for _ in 0..result.header.n_authority_rr {
+            let rec = DNSRRecord::read(buf)?;
+            result.authority.push(rec);
+        }
+
+        for _ in 0..result.header.n_additional_rr {
+            let rec = DNSRRecord::read(buf)?;
+            result.additional_resources.push(rec);
+        }
+
+        Ok(result)
     }
 }
