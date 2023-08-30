@@ -76,12 +76,29 @@ impl BytePacket {
         Ok(&self.buf[start..start + len])
     }
 
-    fn write_u8(&mut self, pos: usize, byte: u8) -> Result<()> {
-        if pos > 512 {
+    fn write_u8(&mut self, byte: u8) -> Result<()> {
+        if self.pos >= 512 {
             return Err("Write beyond bounds".into());
         }
 
-        self.buf[pos] = byte;
+        self.buf[self.pos] = byte;
+        self.pos += 1;
+        Ok(())
+    }
+
+    fn write_u16(&mut self, val: u16) -> Result<()> {
+        self.write_u8((val >> 8) as u8)?;
+        self.write_u8((val & 0xFF) as u8)?;
+
+        Ok(())
+    }
+
+    fn write_u32(&mut self, val: u32) -> Result<()> {
+        self.write_u8((val >> 24) as u8)?;
+        self.write_u8(((val >> 16) & 0xFF) as u8)?;
+        self.write_u8(((val >> 8) & 0xFF) as u8)?;
+        self.write_u8(((val >> 0) & 0xFF) as u8)?;
+
         Ok(())
     }
 
@@ -148,9 +165,25 @@ impl BytePacket {
 
         Ok(domain_name)
     }   
+
+    pub fn write_qname(&mut self, query_name: &str) -> Result<()> {
+        for label in query_name.split('.') {
+            if label.len() > 0x3f {
+                return Err("A label exceeds 63 characters limit".into());
+            }
+
+            self.write_u8(label.len() as u8)?;
+            for b in label.as_bytes() {
+                self.write_u8(*b)?;
+            }
+        }
+
+        self.write_u8(0)?;
+        Ok(())
+    }
 }
 
-#[derive(PartialEq, Eq)]
+#[derive(PartialEq, Eq, Clone, Copy)]
 pub enum RCode {
     NOERROR = 0,
     FORMERR = 1,
@@ -242,6 +275,29 @@ impl DNSHeader {
 
             Ok(())
     }
+
+    pub fn write(&self, buf: &mut BytePacket) -> Result<()> {
+        buf.write_u16(self.id)?;
+
+        buf.write_u8((self.recursion_desired as u8) |
+                        ((self.truncation as u8) << 1) | 
+                        ((self.auth_ans as u8) << 2)  |
+                        ((self.opcode << 3)) |
+                        ((self.response_code as u8) << 7) as u8 )?;
+
+        buf.write_u8( (self.response_code as u8) | 
+                        ((self.checking_disabled as u8) << 4) | 
+                        ((self.authed_data as u8) << 5) | 
+                        ((self.z as u8) << 6) |
+                        ((self.recursion_available as u8) << 7))?;
+
+        buf.write_u16(self.n_questions)?;
+        buf.write_u16(self.n_answers)?;
+        buf.write_u16(self.n_authority_rr)?;
+        buf.write_u16(self.n_additional_rr)?;
+
+        Ok(())
+    }
 }
 
 //type of record being queried
@@ -275,8 +331,8 @@ pub struct DNSQuestion {
 }
 
 impl DNSQuestion {
-    pub fn new(name: String, query_type: QueryRecordType) -> Self{
-        Self {
+    pub fn new(name: String, query_type: QueryRecordType) -> DNSQuestion{
+        DNSQuestion { 
             name: name,
             query_type: query_type,
             class: 0
@@ -288,6 +344,15 @@ impl DNSQuestion {
         self.query_type = QueryRecordType::from_num(buf.read_u16()?);
 
         self.class = buf.read_u16()?;
+
+        Ok(())
+    }
+
+    pub fn write(&self, buf: &mut BytePacket) -> Result<()> {
+        buf.write_qname(&self.name)?;
+
+        buf.write_u16(self.query_type.to_num())?;
+        buf.write_u16(1)?; //class code
 
         Ok(())
     }
@@ -369,6 +434,10 @@ impl DNSRRecord {
             }
         }
     }
+
+    pub fn write(&self, buf: &mut BytePacket) -> Result<()>{
+        
+    }
 }
 
 pub struct DNSPacket {
@@ -390,7 +459,7 @@ impl DNSPacket {
         }
     }
 
-    pub fn from_packet_buffer(buf: &mut BytePacket) -> Result<DNSPacket> {
+    pub fn from_byte_packet_buffer(buf: &mut BytePacket) -> Result<DNSPacket> {
         let mut result = DNSPacket::new();
         result.header.read(buf);
 
